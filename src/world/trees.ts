@@ -2,10 +2,14 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { U } from '../core/env';
 import { TEX } from '../core/assets';
-import { heightAt, slopeAt, forestDensity, villageAt, WATER_Y } from './world';
+import { heightAt, slopeAt, forestDensity, villageAt, WATER_Y, P } from './world';
 import { mulberry32, hashInt, smooth, clamp } from '../core/rand';
 
 export const FEAT_CHUNK = 128;
+/** Đặc tính rừng theo không gian (đặt bởi scenes.ts) */
+export const TREE_LOOK = { density: 1, pine: 0.45, slim: false, scale: 1, clear: { x: 55, z: 0, r: 34 } };
+/** khoảng cách cây nhỏ dần rồi biến mất (phải nhỏ hơn bán kính chunk × 128) */
+export const TREE_FADE = { value: new THREE.Vector2(270, 370) };
 
 // ───────── hình học cây (low-poly có biến dạng, tô màu bằng vertex color) ─────────
 function colorize(g: THREE.BufferGeometry, fn: (x: number, y: number, z: number) => [number, number, number]) {
@@ -162,14 +166,15 @@ function swayMaterial(sway: number, leaf: boolean, map: THREE.Texture | null, nm
     vertexColors: true, roughness: 0.92, metalness: 0, map: map ?? undefined, normalMap: nmap ?? undefined,
     side: leaf ? THREE.DoubleSide : THREE.FrontSide, alphaTest: leaf ? 0.4 : 0, alphaToCoverage: leaf,
   });
+  if (leaf) m.color.setScalar(0.5); // lá tối hơn: bớt "phủ tuyết" ở phía đối diện ánh trăng
   m.onBeforeCompile = sh => {
-    sh.uniforms.uTime = U.uTime; sh.uniforms.uWind = U.uWind; sh.uniforms.uCam = U.uCam;
-    sh.vertexShader = 'uniform float uTime; uniform vec2 uWind; uniform vec3 uCam;\n' + sh.vertexShader.replace(
+    sh.uniforms.uTime = U.uTime; sh.uniforms.uWind = U.uWind; sh.uniforms.uCam = U.uCam; sh.uniforms.uFade = TREE_FADE;
+    sh.vertexShader = 'uniform float uTime; uniform vec2 uWind; uniform vec3 uCam; uniform vec2 uFade;\n' + sh.vertexShader.replace(
       '#include <begin_vertex>',
       `#include <begin_vertex>
       vec3 ip = vec3(instanceMatrix[3]);
       float dcam = distance(ip.xz, uCam.xz);
-      transformed *= 1.0 - smoothstep(380.0, 520.0, dcam);
+      transformed *= 1.0 - smoothstep(uFade.x, uFade.y, dcam);
       mat3 imx = mat3(instanceMatrix);
       vec3 wl = normalize(transpose(imx) * vec3(uWind.x, 0.0, uWind.y));
       float y2 = max(transformed.y - 1.5, 0.0); y2 *= y2;
@@ -184,11 +189,13 @@ function swayMaterial(sway: number, leaf: boolean, map: THREE.Texture | null, nm
       sh.fragmentShader = sh.fragmentShader.replace('#include <normal_fragment_begin>',
         THREE.ShaderChunk.normal_fragment_begin.replace('float faceDirection = gl_FrontFacing ? 1.0 : - 1.0;', 'float faceDirection = 1.0;'));
     }
+    if (leaf) sh.fragmentShader = sh.fragmentShader.replace('#include <dithering_fragment>', 'gl_FragColor.rgb *= 0.6;\n#include <dithering_fragment>');
     // viền sáng xanh ánh trăng quanh tán lá
     sh.fragmentShader = sh.fragmentShader.replace(
       '#include <emissivemap_fragment>',
       `#include <emissivemap_fragment>
-      totalEmissiveRadiance += vec3(0.012, 0.050, 0.065) * 0.5 * pow(1.0 - saturate(dot(normalize(vNormal), normalize(vViewPosition))), 2.4);`,
+      totalEmissiveRadiance += vec3(0.012, 0.050, 0.065) * 0.5 * pow(1.0 - saturate(dot(normalize(vNormal), normalize(vViewPosition))), 2.4);
+      totalEmissiveRadiance += diffuseColor.rgb * vec3(0.05, 0.22, 0.17); // ánh sáng phản chiếu nền trời: mặt khuất không bị đen kịt`,
     );
   };
   return m;
@@ -204,6 +211,11 @@ export class TreeManager {
   private matRock = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 });
   radius = 4; attempts = 170;
 
+  clear() {
+    for (const [, objs] of this.chunks) objs.forEach(o => { this.group.remove(o); (o as THREE.InstancedMesh).dispose(); });
+    this.chunks.clear();
+  }
+
   private build(cx: number, cz: number): THREE.Object3D[] {
     const r = mulberry32(hashInt(cx, cz, 777));
     const ox = cx * FEAT_CHUNK, oz = cz * FEAT_CHUNK;
@@ -217,8 +229,8 @@ export class TreeManager {
       const v = villageAt(x, z);
       const vd = v ? Math.hypot(x - v.x, z - v.z) : 999;
       if (vd < 44) continue;
-      if (Math.hypot(x - 55, z) < 34) continue; // chừa chỗ camera xuất phát
-      const alt = smooth(95, 130, h + (rr2 - 0.5) * 30);
+      if (Math.hypot(x - TREE_LOOK.clear.x, z - TREE_LOOK.clear.z) < TREE_LOOK.clear.r) continue; // chừa chỗ camera xuất phát
+      const alt = smooth(P.treeLine, P.treeLine + 35, h + (rr2 - 0.5) * 30);
       const fd = forestDensity(x, z) * (1 - alt);
       const sl = slopeAt(x, z);
       if (sl > 0.75) continue;
@@ -227,15 +239,16 @@ export class TreeManager {
         q.setFromEuler(e.set(0, rr3 * 6.28, 0)); s.set(sc, sc * 0.8, sc * (0.8 + rr4 * 0.5));
         rocks.push(m.clone().compose(p, q, s)); continue;
       }
-      const prob = fd * 0.95 + (alt < 0.5 ? 0.025 : 0) + (vd < 70 ? 0.08 : 0);
+      const prob = (fd * 0.95 + (alt < 0.5 ? 0.025 : 0) + (vd < 70 ? 0.08 : 0)) * TREE_LOOK.density;
       if (rr2 > prob) continue;
-      const sc = 0.62 + rr3 * 0.75 + fd * 0.2;
+      const sc = (0.62 + rr3 * 0.75 + fd * 0.2) * TREE_LOOK.scale;
       p.set(x, h - 0.15, z);
       q.setFromEuler(e.set((rr4 - 0.5) * 0.06, rr * 40, (rr3 - 0.5) * 0.06));
-      s.set(sc * (0.85 + rr4 * 0.3), sc, sc * (0.85 + rr * 0.3));
+      const pineChance = TREE_LOOK.pine + alt * 0.5 + (h > 28 ? 0.2 : 0), isPine = rr4 < pineChance;
+      if (isPine && TREE_LOOK.slim) s.set(sc * 0.72 * (0.85 + rr4 * 0.3), sc * 1.5, sc * 0.72 * (0.85 + rr * 0.3));
+      else s.set(sc * (0.85 + rr4 * 0.3), sc, sc * (0.85 + rr * 0.3));
       const mat = m.clone().compose(p, q, s);
-      const pineChance = 0.45 + alt * 0.5 + (h > 28 ? 0.2 : 0);
-      (rr4 < pineChance ? pines : broads).push(mat);
+      (isPine ? pines : broads).push(mat);
     }
     const out: THREE.Object3D[] = [];
     const add = (geo: THREE.BufferGeometry, mat: THREE.Material, list: THREE.Matrix4[]) => {

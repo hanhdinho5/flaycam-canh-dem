@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { U, FOG_GLSL } from '../core/env';
-import { heightAt, slopeAt, pathDist, patchNoise, mountainMask, villageAt } from './world';
+import { heightAt, slopeAt, pathDist, patchNoise, mountainMask, villageAt, P as WORLD } from './world';
 import { mulberry32, hashInt, smooth } from '../core/rand';
 
 const CH = 32; // kích thước chunk cỏ (m)
@@ -96,7 +96,7 @@ export class GrassField {
     }
     if (!any) return null;
     const rnd = mulberry32(hashInt(cx, cz, 4242));
-    const count = Math.floor(CH * CH * this.density);
+    const count = Math.floor(CH * CH * this.density * this.densityMul);
     const off = new Float32Array(count * 3), P = new Float32Array(count * 4), T = new Float32Array(count * 3);
     let k = 0, ymin = 1e9, ymax = -1e9;
     for (let i = 0; i < count; i++) {
@@ -107,7 +107,7 @@ export class GrassField {
       const sl = Math.hypot(hg[b + 1] - hg[b], hg[b + N] - hg[b]);
       const wx = ox + lx, wz = oz + lz;
       // mật độ theo độ cao, độ dốc, bờ nước, đường mòn
-      let dens = smooth(0.25, 0.9, h) * (1 - smooth(55, 95, h)) * (1 - smooth(0.5, 0.95, sl));
+      let dens = smooth(0.25, 0.9, h) * (1 - smooth(WORLD.treeLine * 0.58, WORLD.treeLine, h)) * (1 - smooth(0.5, 0.95, sl));
       const pd = pathDist(wx, wz);
       if (pd < 2.6) dens *= smooth(0.9, 2.6, pd);
       const r2 = rnd();
@@ -125,7 +125,7 @@ export class GrassField {
         else { T[k * 3] = 2.4; T[k * 3 + 1] = 1.4; T[k * 3 + 2] = 3.4; }
       } else {
         const tn = 0.8 + 0.5 * patch;
-        T[k * 3] = 0.55 * tn + rnd() * 0.15; T[k * 3 + 1] = 0.95 * tn + rnd() * 0.12; T[k * 3 + 2] = 0.6 * tn;
+        T[k * 3] = (0.55 * tn + rnd() * 0.15) * this.tint[0]; T[k * 3 + 1] = (0.95 * tn + rnd() * 0.12) * this.tint[1]; T[k * 3 + 2] = 0.6 * tn * this.tint[2];
       }
       if (h < ymin) ymin = h; if (h > ymax) ymax = h;
       k++;
@@ -140,8 +140,15 @@ export class GrassField {
     g.instanceCount = k;
     g.boundingSphere = new THREE.Sphere(new THREE.Vector3(ox + CH / 2, (ymin + ymax) / 2 + 1, oz + CH / 2), CH * 0.72 + (ymax - ymin) / 2 + 2);
     const mesh = new THREE.Mesh(g, this.mat);
-    mesh.frustumCulled = true;
+    mesh.frustumCulled = true; mesh.layers.set(1); // layer 1: không vẽ trong ảnh phản chiếu mặt hồ
     return mesh;
+  }
+
+  /** 0..1.x: nhân mật độ cỏ theo không gian; tint nhân màu ngọn cỏ */
+  densityMul = 1; tint: [number, number, number] = [1, 1, 1];
+  clear() {
+    for (const [, m] of this.chunks) { this.group.remove(m); m.geometry.dispose(); }
+    this.chunks.clear();
   }
 
   update(camX: number, camZ: number, agl: number, budget: number) {

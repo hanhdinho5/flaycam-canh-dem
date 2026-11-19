@@ -57,7 +57,7 @@ export class Fireflies {
       uniforms: { uTime: U.uTime, uPx: U.uPx, uCam: U.uCam, uAgl: this.aglUniform, uFogDensity: U.uFogDensity },
     });
     this.points = new THREE.Points(g, this.mat);
-    this.points.frustumCulled = false;
+    this.points.frustumCulled = false; this.points.layers.set(1);
     this.initialized = false;
   }
   private initialized: boolean;

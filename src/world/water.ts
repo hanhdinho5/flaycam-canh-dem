@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { U } from '../core/env';
 import { WATER_Y } from './world';
+import { Reflector } from 'three/examples/jsm/objects/Reflector.js';
 
 const vert = /* glsl */ `
 varying vec3 vW;
@@ -72,4 +73,56 @@ export function createWater(): THREE.Mesh {
   const m = new THREE.Mesh(g, mat);
   m.position.y = WATER_Y; m.frustumCulled = false; m.renderOrder = 1;
   return m;
+}
+
+// ───────── mặt hồ gương: phản chiếu thật bằng camera đối xứng (Reflector) ─────────
+const mVert = /* glsl */ `
+uniform mat4 textureMatrix; varying vec4 vUv; varying vec3 vW;
+void main(){
+  vUv = textureMatrix * vec4(position, 1.0);
+  vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz;
+  gl_Position = projectionMatrix * viewMatrix * w;
+}`;
+const mFrag = /* glsl */ `
+precision highp float;
+uniform vec3 color; uniform sampler2D tDiffuse;
+uniform float uTime; uniform vec3 uCam; uniform vec3 uFogColor; uniform float uFogDensity; uniform vec2 uWind; uniform vec3 uMoonCol; uniform vec3 uMoonDir;
+varying vec4 vUv; varying vec3 vW;
+float hash(vec2 p){ p = fract(p*vec2(123.34,456.21)); p += dot(p,p+45.32); return fract(p.x*p.y); }
+float vnoise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);
+  return mix(mix(hash(i),hash(i+vec2(1,0)),f.x), mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x), f.y); }
+void main(){
+  vec3 V = uCam - vW; float dist = length(V); V /= dist;
+  // gợn rất nhẹ làm méo ảnh phản chiếu (hồ lặng)
+  vec2 p = vW.xz;
+  float n1 = vnoise(p * 0.35 + uWind * uTime * 0.25), n2 = vnoise(p * 1.3 - uWind * uTime * 0.4 + 9.0);
+  vec2 off = (vec2(n1 - 0.5, n2 - 0.5)) * 0.005 * (1.0 / (1.0 + dist * 0.02));
+  vec3 refl = texture2DProj(tDiffuse, vec4(vUv.xy + off * vUv.w, vUv.z, vUv.w)).rgb;
+  float cosT = clamp(V.y, 0.0, 1.0);
+  float fres = pow(1.0 - cosT, 3.0);
+  vec3 deep = vec3(0.004, 0.012, 0.022);
+  vec3 col = mix(deep, refl * 0.92, clamp(0.72 + 0.28 * fres, 0.0, 1.0));
+  // vệt ánh trăng / sao lấp lánh nhẹ
+  float sp = pow(max(dot(reflect(-V, vec3(0.0, 1.0, 0.0)), uMoonDir), 0.0), 250.0);
+  col += uMoonCol * sp * 0.4 * (n1 + 0.3);
+  float f = dist * uFogDensity;
+  col = mix(col, uFogColor, (1.0 - exp(-f * f)) * 0.85);
+  gl_FragColor = vec4(col, 1.0);
+}`;
+
+export function createMirrorWater(w: number, h: number): Reflector {
+  const g = new THREE.PlaneGeometry(3600, 3600, 1, 1);
+  const r = new Reflector(g, {
+    textureWidth: w, textureHeight: h, clipBias: 0.003, multisample: 2,
+    shader: {
+      name: 'MirrorLake',
+      uniforms: {
+        color: { value: null }, tDiffuse: { value: null }, textureMatrix: { value: null },
+        uTime: U.uTime, uCam: U.uCam, uFogColor: U.uFogColor, uFogDensity: U.uFogDensity, uWind: U.uWind, uMoonCol: U.uMoonCol, uMoonDir: U.uMoonDir,
+      },
+      vertexShader: mVert, fragmentShader: mFrag,
+    },
+  });
+  r.rotation.x = -Math.PI / 2; r.position.y = WATER_Y; r.frustumCulled = false; r.renderOrder = 1;
+  return r;
 }

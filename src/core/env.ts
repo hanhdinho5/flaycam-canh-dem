@@ -14,6 +14,16 @@ export const U = {
   uPx: { value: 800 },
   uMoonDir: { value: MOON_DIR.clone() },
   uMoonCol: { value: MOON_COLOR.clone() },
+  // bầu trời (mỗi không gian một bộ)
+  uSkyTop: { value: new THREE.Vector3(0.0016, 0.012, 0.024) },
+  uSkyMid: { value: new THREE.Vector3(0.006, 0.040, 0.078) },
+  uMoonOn: { value: 1 },
+  uMoonSize: { value: 0.028 },
+  uStars: { value: new THREE.Vector2(0.987, 1.0) },      // x: ngưỡng (thấp = nhiều sao), y: độ sáng
+  uMW: { value: 0.35 },                                  // dải ngân hà
+  uCloud: { value: new THREE.Vector2(0.5, 0.0) },        // x: độ phủ mây, y: kiểu (0 cuộn, 1 sợi mảnh)
+  uCloudLit: { value: new THREE.Vector3(0.30, 0.78, 0.92) },
+  uCloudDark: { value: new THREE.Vector3(0.010, 0.040, 0.062) },
 };
 
 export const FOG_GLSL = /* glsl */ `

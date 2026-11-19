@@ -4,7 +4,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import fs from 'node:fs';
 import { TikTokLiveConnection, WebcastEvent, ControlEvent } from 'tiktok-live-connector';
 import {
-  CMDS, DEFAULT_MAP, WARP_MIN_DIAMONDS, WS_PORT, findGiftByIdOrName, GIFTS_1,
+  CMDS, DEFAULT_MAP, SCENE_MIN_DIAMONDS, WS_PORT, findGiftByIdOrName, GIFTS_1,
   type Cmd, type GiftMap, type ServerState,
 } from '../shared/giftmap';
 
@@ -13,15 +13,16 @@ const log = (...a: unknown[]) => console.log(new Date().toLocaleTimeString(), ..
 
 let map: GiftMap = { ...DEFAULT_MAP };
 try { map = { ...map, ...JSON.parse(fs.readFileSync(FILE, 'utf8')) }; } catch { /* lần đầu */ }
-const state: ServerState = { type: 'state', map, mode: 'idle', username: '', connected: false };
+const state: ServerState = { type: 'state', map, mode: 'idle', username: '', connected: false, scene: 0 };
 
-const wss = new WebSocketServer({ port: WS_PORT });
+const PORT = Number(process.env.WS_PORT) || WS_PORT;   // đổi cổng: WS_PORT=8800 pnpm server (và thêm ?ws=8800 vào link trang)
+const wss = new WebSocketServer({ port: PORT });
 wss.on('error', (e: any) => {
-  if (e.code === 'EADDRINUSE') console.error(`\n⚠ Cổng ${WS_PORT} đang bị chiếm (có thể server cũ vẫn chạy). Tắt bằng: kill $(lsof -ti :${WS_PORT})\n`);
+  if (e.code === 'EADDRINUSE') console.error(`\n⚠ Cổng ${PORT} đang bị chiếm (có thể server cũ vẫn chạy). Tắt bằng: kill $(lsof -ti :${PORT})\n`);
   else console.error(e);
   process.exit(1);
 });
-log(`WebSocket ws://localhost:${WS_PORT}`);
+log(`WebSocket ws://localhost:${PORT}`);
 
 const broadcast = (o: unknown) => {
   const s = JSON.stringify(o);
@@ -30,8 +31,8 @@ const broadcast = (o: unknown) => {
 const pushState = () => { state.map = map; broadcast(state); };
 const saveMap = () => fs.writeFileSync(FILE, JSON.stringify(map, null, 1));
 
-function fire(cmd: Cmd, user?: string, gift?: string, count = 1) {
-  broadcast({ type: 'command', cmd, user, gift, count });
+function fire(cmd: Cmd, user?: string, gift?: string, count = 1, index?: number) {
+  broadcast({ type: 'command', cmd, user, gift, count, index });
   log(`→ ${cmd} ×${count} (${user ?? '?'} · ${gift ?? '-'})`);
 }
 
@@ -55,9 +56,10 @@ async function startTikTok(username: string) {
     if (d.repeatEnd) streak.delete(key); else streak.set(key, rc);
     const known = findGiftByIdOrName(id, name);
     let cmd: Cmd | undefined = known ? map[known.name] : map[name];
-    if (!cmd && diamonds >= WARP_MIN_DIAMONDS) cmd = 'warp';
+    if (!cmd && diamonds >= SCENE_MIN_DIAMONDS) cmd = 'scene';   // quà từ 30 xu -> đổi không gian
     if (!cmd) { log(`(quà chưa gán: ${name} #${id}, ${diamonds}💎)`); return; }
-    fire(cmd, user, name, cmd === 'warp' ? 1 : delta);
+    if (cmd === 'scene' && done > 0) return;   // combo cùng một quà chỉ đổi không gian 1 lần
+    fire(cmd, user, name, cmd === 'warp' || cmd === 'scene' ? 1 : delta);
   });
   c.on(ControlEvent.DISCONNECTED, () => {
     state.connected = false; pushState();
@@ -92,7 +94,7 @@ wss.on('connection', ws => {
       case 'fire': { // bấm quà thử từ trang điều khiển
         const g = GIFTS_1.find(x => x.name === m.gift);
         const cmd: Cmd | undefined = CMDS.includes(m.cmd) ? m.cmd : g ? map[g.name] : undefined;
-        if (cmd) fire(cmd, 'điều khiển', m.gift, 1);
+        if (cmd) fire(cmd, 'điều khiển', m.gift, 1, typeof m.index === 'number' ? m.index : undefined);
         break;
       }
       case 'setMap': if (m.map && typeof m.map === 'object') {
@@ -100,6 +102,7 @@ wss.on('connection', ws => {
         for (const [k, v] of Object.entries(m.map)) if (CMDS.includes(v as Cmd)) next[k] = v as Cmd;
         map = next; saveMap(); pushState();
       } break;
+      case 'sceneChanged': if (typeof m.index === 'number') { state.scene = m.index; pushState(); } break;
       case 'connect': if (typeof m.username === 'string' && m.username.trim()) startTikTok(m.username.trim().replace(/^@/, '')); break;
       case 'demo': startDemo(); break;
       case 'disconnect': stopAll().then(pushState); break;

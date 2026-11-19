@@ -5,55 +5,91 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Điều khiển Flycam</title>
 <style>
-  :root{--bg:#0b1218;--card:#131d27;--line:#22313f;--fg:#e6f1f7;--mut:#7f95a6;--acc:#33c6e8;--ok:#3ddc97;--bad:#ff6b6b}
-  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.4 system-ui,sans-serif;padding:14px;max-width:1100px;margin:auto}
-  h1{font-size:18px;margin:0 0 12px} h2{font-size:14px;margin:18px 0 8px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em}
-  .panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
-  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-  input,select,button{font:inherit;color:var(--fg);background:#0e161d;border:1px solid var(--line);border-radius:8px;padding:8px 10px}
-  button{cursor:pointer;background:#173042} button:hover{border-color:var(--acc)} button.primary{background:var(--acc);color:#04222b;border-color:var(--acc);font-weight:600}
-  button.danger{background:#3a1b1b}
-  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--bad);margin-right:6px} .dot.on{background:var(--ok)}
-  .cmds{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
-  .cmds button{padding:12px;text-align:center}
-  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
-  .gift{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px;display:flex;flex-direction:column;gap:6px;align-items:center}
+  :root{--bg:#0b1218;--card:#121c26;--line:#22313f;--fg:#e6f1f7;--mut:#7f95a6;--acc:#33c6e8;--ok:#3ddc97;--bad:#ff6b6b}
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{background:var(--bg);color:var(--fg);font:13px/1.35 system-ui,sans-serif;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;padding:12px;overflow:hidden}
+  h1{font-size:15px;margin:0} h2{font-size:11px;margin:0 0 6px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px}
+  .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  input,select,button{font:inherit;color:var(--fg);background:#0e161d;border:1px solid var(--line);border-radius:7px;padding:6px 9px}
+  button{cursor:pointer;background:#173042} button:hover{border-color:var(--acc)}
+  button.primary{background:var(--acc);color:#04222b;border-color:var(--acc);font-weight:600} button.danger{background:#3a1b1b}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--bad);margin-right:6px} .dot.on{background:var(--ok)}
+  .hint{color:var(--mut);font-size:11.5px}
+
+  /* cột trái: điều khiển, đầy màn hình, không cuộn trang */
+  #left{display:flex;flex-direction:column;gap:10px;min-height:0;min-width:0;overflow-y:auto;padding-right:2px}
+  #cols .sim{max-height:300px;overflow:auto}
+  #top{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  #top .grow{flex:1}
+  #cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+  @media (max-width:1250px){#cols{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  .sim{display:flex;flex-wrap:wrap;gap:6px}
+  .simBtn{display:flex;align-items:center;gap:6px;padding:4px 9px 4px 4px;text-align:left;font-size:12px}
+  .simBtn img{width:28px;height:28px;object-fit:contain}
+  .simBtn small{display:block;color:var(--mut);font-size:10.5px}
+  .simBtn.on{border-color:var(--acc);background:#10303d}
+  .cmds{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+  .cmds button{padding:9px 4px;text-align:center;font-size:12px}
+
+  #giftsPanel{flex:1 0 auto;min-height:320px;display:flex;flex-direction:column}
+  #grid{flex:1;min-height:200px;overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:7px;align-content:start;padding-right:4px}
+  .gift{background:#0e171f;border:1px solid var(--line);border-radius:9px;padding:6px;display:flex;flex-direction:column;gap:4px;align-items:center}
   .gift.assigned{border-color:#2f7f94;background:#10222b}
-  .gift img{width:56px;height:56px;object-fit:contain;cursor:pointer;border-radius:8px;transition:transform .1s} .gift img:active{transform:scale(.9)}
-  .gift .n{font-size:12px;text-align:center;min-height:30px} .gift select{width:100%;font-size:12px;padding:5px}
-  .hint{color:var(--mut);font-size:12px}
-  #flash{position:fixed;right:14px;bottom:14px;background:#173042;border:1px solid var(--acc);padding:8px 14px;border-radius:10px;opacity:0;transition:opacity .25s}
+  .gift img{width:40px;height:40px;object-fit:contain;cursor:pointer;border-radius:7px;transition:transform .1s} .gift img:active{transform:scale(.9)}
+  .gift .n{font-size:11px;text-align:center;line-height:1.15;min-height:26px;display:flex;align-items:center}
+  .gift select{width:100%;font-size:11px;padding:3px 4px}
+
+  /* cột phải: màn live 9:16 xem trước */
+  #right{display:flex;flex-direction:column;gap:8px;min-height:0;width:calc((100vh - 70px) * 9 / 16);max-width:34vw;min-width:260px}
+  #frameWrap{flex:1;min-height:0;display:flex;align-items:flex-start}
+  #frame{width:100%;aspect-ratio:9/16;max-height:100%;border:1px solid var(--line);border-radius:12px;background:#000;overflow:hidden;position:relative}
+  #frame iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+  #off{position:absolute;inset:0;display:none;align-items:center;justify-content:center;color:var(--mut);text-align:center;padding:20px}
+  #flash{position:fixed;right:14px;bottom:14px;background:#173042;border:1px solid var(--acc);padding:7px 13px;border-radius:9px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:5}
   #flash.show{opacity:1}
 </style>
 </head>
 <body>
-<h1>🛸 Điều khiển Flycam Đêm Trăng</h1>
-
-<div class="panel">
-  <div class="row">
-    <span><span class="dot" id="wsDot"></span><span id="wsTxt">Chưa nối server</span></span>
-    <span>·</span>
-    <span id="modeTxt" class="hint"></span>
-  </div>
-  <div class="row" style="margin-top:10px">
-    <input id="user" placeholder="@username TikTok đang live" size="26">
-    <button class="primary" id="btnConnect">Nối live TikTok</button>
-    <button id="btnDemo">Chạy demo</button>
+<div id="left">
+  <div class="panel" id="top">
+    <h1>🛸 Điều khiển Flycam</h1>
+    <span><span class="dot" id="wsDot"></span><span id="wsTxt">Chưa nối server</span> · <span id="modeTxt" class="hint"></span></span>
+    <span class="grow"></span>
+    <input id="user" placeholder="@username TikTok đang live" size="24">
+    <button class="primary" id="btnConnect">Nối live</button>
+    <button id="btnDemo">Demo</button>
     <button class="danger" id="btnStop">Ngắt</button>
-    <a id="liveLink" href="/" target="_blank" style="color:var(--acc);margin-left:auto">Mở trang live (9:16) ↗</a>
+    <a id="liveLink" href="/" target="_blank" style="color:var(--acc)">Mở trang live ↗</a>
+  </div>
+
+  <div id="cols">
+    <div class="panel"><h2>Không gian — <b id="sceneNow" style="color:var(--fg);text-transform:none"></b></h2><div class="sim" id="simScenes"></div>
+      <h2 style="margin-top:10px">Bay thử trực tiếp</h2><div class="cmds" id="cmds"></div></div>
+    <div class="panel"><h2>Giả lập quà 1 xu đã gán</h2><div class="sim" id="simGifts"></div></div>
+    <div class="panel"><h2>Giả lập quà ≥ 30 xu → đổi không gian</h2><div class="sim" id="simBig"></div></div>
+  </div>
+
+  <div class="panel" id="giftsPanel">
+    <div class="row" style="margin-bottom:8px">
+      <h2 style="margin:0">Gán quà 1 xu → hướng bay</h2>
+      <input id="q" placeholder="Tìm quà..." size="18">
+      <label class="hint"><input type="checkbox" id="onlyAssigned" style="vertical-align:middle"> chỉ quà đã gán</label>
+      <span class="hint" id="count"></span>
+      <span class="hint">· bấm hình quà để bay thử</span>
+    </div>
+    <div id="grid"></div>
   </div>
 </div>
 
-<h2>Bay thử trực tiếp</h2>
-<div class="panel cmds" id="cmds"></div>
-
-<h2>Quà 1 xu → hướng bay <span class="hint" style="text-transform:none">(bấm hình quà để bay thử, chọn hướng ở ô dưới để gán cho live thật)</span></h2>
-<div class="row" style="margin-bottom:10px">
-  <input id="q" placeholder="Tìm quà..." size="22">
-  <label class="hint"><input type="checkbox" id="onlyAssigned" style="vertical-align:middle"> chỉ hiện quà đã gán</label>
-  <span class="hint" id="count"></span>
+<div id="right">
+  <div class="row"><h2 style="margin:0">Màn live (xem trước)</h2><span style="flex:1"></span>
+    <label class="hint"><input type="checkbox" id="prev" checked style="vertical-align:middle"> bật</label></div>
+  <div id="frameWrap"><div id="frame"><iframe id="liveFrame" title="live"></iframe><div id="off" class="hint">Xem trước đang tắt<br>(đỡ tốn GPU)</div></div></div>
+  <div class="hint">Đây là bản xem trước nhận cùng lệnh quà, nhưng bay độc lập với cửa sổ live thật.</div>
 </div>
-<div class="grid" id="grid"></div>
+
 <div id="flash"></div>
 <script type="module" src="/src/control.ts"></script>
 </body>

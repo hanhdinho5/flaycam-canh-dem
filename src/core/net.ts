@@ -7,7 +7,7 @@ export function connectServer(role: 'game' | 'control', onMsg: (m: any) => void,
   let ws: WebSocket | null = null;
   const queue: string[] = [];
   const open = () => {
-    try { ws = new WebSocket(`ws://${location.hostname || 'localhost'}:${WS_PORT}`); } catch { setTimeout(open, 3000); return; }
+    try { ws = new WebSocket(`ws://${location.hostname || 'localhost'}:${Number(new URLSearchParams(location.search).get('ws')) || WS_PORT}`); } catch { setTimeout(open, 3000); return; }
     ws.onopen = () => { onStatus(true); ws!.send(JSON.stringify({ type: 'hello', role })); queue.splice(0).forEach(q => ws!.send(q)); };
     ws.onmessage = e => { try { onMsg(JSON.parse(e.data)); } catch { /* bỏ qua */ } };
     ws.onclose = () => { onStatus(false); setTimeout(open, 2500); };

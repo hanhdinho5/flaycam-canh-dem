@@ -121,6 +121,33 @@ function makeBarn(): HouseGeo {
   b.windowAt(3.8, 0.5 + 2.2, D / 2, 0, 0.7, 0.7);
   return b.build();
 }
+/** Cabin gỗ tròn bên hồ: ban công + bến gỗ nhô ra mặt nước, ống khói đá, cửa sổ ấm */
+function makeLogCabin(): HouseGeo {
+  const b = new Builder(), W = 8.4, D = 6.4, H = 3.1, LOG: RGB = [0.82, 0.55, 0.36], STONE2: RGB = [0.5, 0.5, 0.54], DARK: RGB = [0.30, 0.20, 0.14];
+  b.box(W + 0.4, 0.55, D + 0.4, 0, 0, 0, STONE2, 0.5);                 // móng đá
+  b.box(W, H, D, 0, 0.55, 0, LOG);                                       // thân gỗ
+  for (let i = 1; i < 5; i++) b.box(W + 0.18, 0.07, D + 0.18, 0, 0.55 + i * (H / 5), 0, DARK, 0.5); // vệt khớp gỗ
+  b.gable(W, D, 0.55 + H, 0.58, 0.8, ROOF, LOG);
+  b.box(1.5, 6.2, 1.5, W * 0.36, 0, -0.6, STONE2, 0.35);              // ống khói đá cao
+  b.box(1.8, 0.22, 1.8, W * 0.36, 6.2, -0.6, [0.2, 0.2, 0.22], 0.5);
+  b.box(1.1, 2.1, 0.12, -0.6, 0.55, D / 2 + 0.03, DARK, 0.5);          // cửa
+  // hiên + ban công
+  b.box(W + 1.6, 0.2, 3.6, 0, 0.42, D / 2 + 1.8, WOOD, 0.4);
+  for (const sx of [-W / 2 - 0.6, W / 2 + 0.6]) { b.box(0.16, 1.1, 0.16, sx, 0.42, D / 2 + 3.5, WOOD2, 0.5); }
+  b.box(W + 1.6, 0.08, 0.1, 0, 1.3, D / 2 + 3.6, WOOD2, 0.4);
+  // ghế ngoài hiên
+  b.box(0.8, 0.12, 0.8, -2.3, 0.62, D / 2 + 1.9, DARK, 0.5); b.box(0.8, 0.8, 0.1, -2.3, 0.62, D / 2 + 1.5, DARK, 0.5);
+  b.box(0.8, 0.12, 0.8, -1.0, 0.62, D / 2 + 1.9, DARK, 0.5); b.box(0.8, 0.8, 0.1, -1.0, 0.62, D / 2 + 1.5, DARK, 0.5);
+  // bến gỗ nhô ra hồ
+  b.box(2.2, 0.16, 10, 2.2, 0.3, D / 2 + 8.4, WOOD, 0.4);
+  for (let i = 0; i < 5; i++) for (const sx of [1.15, 3.25]) b.box(0.18, 2.6, 0.18, sx, -2.2, D / 2 + 4.2 + i * 2.2, WOOD2, 0.5);
+  // cửa sổ sáng đèn
+  b.windowAt(-2.6, 0.55 + 1.7, D / 2, 0, 0.95, 1.1);
+  b.windowAt(1.9, 0.55 + 1.7, D / 2, 0, 0.95, 1.1);
+  b.windowAt(W / 2, 0.55 + 1.7, 0, Math.PI / 2, 0.9, 1.1); b.windowAt(-W / 2, 0.55 + 1.7, 0, -Math.PI / 2, 0.9, 1.1);
+  b.windowAt(0, 0.55 + H + 0.9, D / 2 - 0.2, 0, 0.5, 0.6);
+  return b.build();
+}
 function makeChurch(): HouseGeo {
   const b = new Builder(), W = 6.2, D = 11, H = 4.4;
   b.box(W + 0.3, 0.7, D + 0.3, 0, 0, 0, STONE, 0.5);
@@ -225,7 +252,7 @@ export class VillageManager {
   private matWin = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
   private matAnimal = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 });
   private matFence = new THREE.MeshStandardMaterial({ color: 0x4a3524, roughness: 1 });
-  private geos = [makeChalet(), makeCabin(), makeBarn(), makeChurch()];
+  private geos = [makeChalet(), makeCabin(), makeBarn(), makeChurch(), makeLogCabin()];
   private sheepG = makeSheep(); private cowG = makeCow();
   private postG = new THREE.BoxGeometry(0.15, 1.15, 0.15).translate(0, 0.57, 0);
   private railG = new THREE.BoxGeometry(1, 0.08, 0.06);
@@ -253,7 +280,7 @@ export class VillageManager {
     const T = this.tmp;
     for (const v of vs) {
       // nhà
-      for (let type = 0; type < 4; type++) {
+      for (let type = 0; type < 5; type++) {
         const hs = v.houses.filter(h => h.type === type && inside(h.x, h.z));
         if (!hs.length) continue;
         const body = new THREE.InstancedMesh(this.geos[type].body, this.matBody, hs.length);
@@ -273,9 +300,9 @@ export class VillageManager {
         if (!inside(h.x, h.z)) continue;
         const rs = mulberry32(hashInt(Math.round(h.x), Math.round(h.z), 5));
         // ống khói (cục bộ) -> thế giới
-        const cxl = h.type === 0 ? 7.5 * 0.28 : h.type === 1 ? -5.2 * 0.25 : 0, czl = h.type === 0 ? -0.5 : 0;
-        if (h.type <= 1 && h.lit > 0) {
-          const ch = h.type === 0 ? 0.8 + 3.2 + 2.6 : 0.5 + 2.6 + 2.0;
+        const cxl = h.type === 0 ? 7.5 * 0.28 : h.type === 1 ? -5.2 * 0.25 : h.type === 4 ? 8.4 * 0.36 : 0, czl = h.type === 0 ? -0.5 : h.type === 4 ? -0.6 : 0;
+        if ((h.type <= 1 || h.type === 4) && h.lit > 0) {
+          const ch = h.type === 0 ? 0.8 + 3.2 + 2.6 : h.type === 4 ? 6.4 : 0.5 + 2.6 + 2.0;
           const c = Math.cos(h.rot), s = Math.sin(h.rot);
           const wx = h.x + (cxl * c + czl * s) * h.s, wz = h.z + (-cxl * s + czl * c) * h.s;
           for (let k = 0; k < 14; k++) { sm.push(wx, h.y + ch * h.s, wz); smS.push(k / 14 + rs() * 0.02); smK.push(0); }
@@ -284,6 +311,10 @@ export class VillageManager {
           const c = Math.cos(h.rot), s = Math.sin(h.rot);
           const fz = (h.type === 2 ? 5 : 4.2) * h.s;
           gl.push(h.x + s * fz, h.y + 1.6, h.z + c * fz); glS.push(rs()); glK.push(1);
+          if (v.kind === 'village') {            // đèn tường hai bên cửa (như ảnh chalet núi)
+            const wl = (h.type === 2 ? 5.5 : h.type === 1 ? 2.6 : 3.7) * h.s;
+            for (const sx of [-wl, wl]) gl.push(h.x + s * (fz - 1.0) + c * sx, h.y + 1.9, h.z + c * (fz - 1.0) - s * sx), glS.push(rs()), glK.push(2);
+          }
         }
       }
       for (const l of v.lamps) {
@@ -313,7 +344,7 @@ export class VillageManager {
       }
       // hàng rào quanh đồng cỏ
       const posts: THREE.Vector3[] = [];
-      const seg = 3.2, steps = Math.floor((2 * Math.PI * v.fenceR) / seg);
+      const seg = 3.2, steps = v.fenceR > 0 ? Math.floor((2 * Math.PI * v.fenceR) / seg) : -1;
       const pts: (THREE.Vector3 | null)[] = [];
       for (let i = 0; i <= steps; i++) {
         const a = (i / steps) * Math.PI * 2;
@@ -358,6 +389,11 @@ export class VillageManager {
       }
     }
     return { objs, animals };
+  }
+
+  clear() {
+    for (const [, d] of this.chunks) d.objs.forEach(o => { this.group.remove(o); (o as THREE.InstancedMesh).dispose?.(); });
+    this.chunks.clear();
   }
 
   update(dt: number, camX: number, camZ: number, budget: number) {
