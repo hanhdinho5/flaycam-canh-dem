@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>Flycam Đêm Trăng</title>
+<style>
+  html,body{margin:0;height:100%;background:#000;overflow:hidden;font-family:system-ui,sans-serif;touch-action:none}
+  /* Trang live: chỉ khung dọc 9:16 (mobile). Trên máy tính vẫn hiện đúng khung 9:16 ở giữa để capture. */
+  #stage{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:#000;overflow:hidden}
+  canvas{display:block}
+  #hud{position:absolute;left:8px;bottom:calc(10px + env(safe-area-inset-bottom));font-size:11px;color:#dff;font-size:12px;line-height:1.25;
+       background:rgba(0,10,20,.42);padding:7px 9px;border-radius:12px;backdrop-filter:blur(6px);
+       text-shadow:0 1px 3px #000;pointer-events:none}
+  #hud .row{display:flex;align-items:center;gap:5px;margin-top:3px;white-space:nowrap}
+  #hud img{width:18px;height:18px;object-fit:contain}
+  #toast{position:absolute;left:50%;top:9%;transform:translateX(-50%);color:#fff;font-size:16px;white-space:nowrap;
+       background:rgba(0,20,40,.55);padding:7px 16px;border-radius:20px;opacity:0;transition:opacity .4s;pointer-events:none}
+  #toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div id="stage"><div id="hud"></div><div id="toast"></div></div>
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>
