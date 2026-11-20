@@ -64,6 +64,13 @@
     <a id="liveLink" href="/" target="_blank" style="color:var(--acc)">Mở trang live ↗</a>
   </div>
 
+  <div class="panel row">
+    <label for="musicTrack">Nhạc nền</label>
+    <select id="musicTrack" style="max-width:100%" disabled><option value="">Tắt nhạc</option></select>
+    <button id="refreshMusic" disabled>Cập nhật danh sách</button>
+    <span id="musicStatus" class="hint" role="status"></span>
+  </div>
+
   <div id="cols">
     <div class="panel"><h2>Không gian — <b id="sceneNow" style="color:var(--fg);text-transform:none"></b></h2><div class="sim" id="simScenes"></div>
       <h2 style="margin-top:10px">Bay thử trực tiếp</h2><div class="cmds" id="cmds"></div></div>
@@ -87,7 +94,7 @@
   <div class="row"><h2 style="margin:0">Màn live (xem trước)</h2><span style="flex:1"></span>
     <label class="hint"><input type="checkbox" id="prev" checked style="vertical-align:middle"> bật</label></div>
   <div id="frameWrap"><div id="frame"><iframe id="liveFrame" title="live"></iframe><div id="off" class="hint">Xem trước đang tắt<br>(đỡ tốn GPU)</div></div></div>
-  <div class="hint">Đây là bản xem trước nhận cùng lệnh quà, nhưng bay độc lập với cửa sổ live thật.</div>
+  <div class="hint">Khung xem trước theo góc quay của trang live và tắt tiếng.</div>
 </div>
 
 <div id="flash"></div>

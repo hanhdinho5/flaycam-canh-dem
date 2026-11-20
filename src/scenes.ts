@@ -8,7 +8,7 @@ export interface SceneDef {
   start: { x: number; z: number; lookAt: { x: number; z: number }; agl: number; clearR?: number };
   look: {
     fogColor: string; fogDensity: number;
-    skyTop: V3; skyMid: V3; moonDir: V3; moonColor: string; moonOn: number; moonSize: number;
+    skyTop: V3; skyMid: V3; moonDir: V3; moonColor: string; moonOn: number; moonSize: number; moonBrightness?: number;
     stars: [number, number]; milkyWay: number; cloud: [number, number]; cloudLit: V3; cloudDark: V3;
     moonLight: { color: number; intensity: number };
     hemi: { sky: number; ground: number; intensity: number };
@@ -64,7 +64,7 @@ export const SCENES: SceneDef[] = [
     start: { x: -8, z: -35, lookAt: { x: 30, z: -200 }, agl: 13, clearR: 60 },
     look: {
       fogColor: '#35568c', fogDensity: 0.00055,
-      skyTop: [0.003, 0.008, 0.035], skyMid: [0.016, 0.046, 0.14], moonDir: [0.28, 0.38, -0.88], moonColor: '#fff0d0', moonOn: 1, moonSize: 0.034,
+      skyTop: [0.003, 0.008, 0.035], skyMid: [0.016, 0.046, 0.14], moonDir: [0.28, 0.38, -0.88], moonColor: '#fff0d0', moonOn: 1, moonSize: 0.024, moonBrightness: 0.22,
       stars: [0.992, 0.8], milkyWay: 0.12, cloud: [0.55, 1.0], cloudLit: [0.46, 0.58, 0.86], cloudDark: [0.012, 0.022, 0.07],
       moonLight: { color: 0xdde8ff, intensity: 2.5 }, hemi: { sky: 0x3c5f9c, ground: 0x24331f, intensity: 1.15 }, fill: { color: 0x8aa4dc, intensity: 1.8, pos: [-0.3, 0.45, 0.85] },
       exposure: 1.2, bloom: 1.0, gradeShadow: [0.86, 0.96, 1.2], gradeSat: 1.0,

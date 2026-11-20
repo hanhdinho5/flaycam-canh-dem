@@ -1,27 +1,151 @@
 <!doctype html>
 <html lang="vi">
+
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-<title>Flycam Đêm Trăng</title>
-<style>
-  html,body{margin:0;height:100%;background:#000;overflow:hidden;font-family:system-ui,sans-serif;touch-action:none}
-  /* Trang live: chỉ khung dọc 9:16 (mobile). Trên máy tính vẫn hiện đúng khung 9:16 ở giữa để capture. */
-  #stage{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);background:#000;overflow:hidden}
-  canvas{display:block}
-  #hud{position:absolute;left:8px;bottom:calc(10px + env(safe-area-inset-bottom));font-size:11px;color:#dff;font-size:12px;line-height:1.25;
-       background:rgba(0,10,20,.42);padding:7px 9px;border-radius:12px;backdrop-filter:blur(6px);
-       text-shadow:0 1px 3px #000;pointer-events:none}
-  #hud .row{display:flex;align-items:center;gap:5px;margin-top:3px;white-space:nowrap}
-  #hud img{width:18px;height:18px;object-fit:contain}
-  #toast{position:absolute;left:50%;top:9%;transform:translateX(-50%);color:#fff;font-size:16px;white-space:nowrap;
-       background:rgba(0,20,40,.55);padding:7px 16px;border-radius:20px;opacity:0;transition:opacity .4s;pointer-events:none}
-  #toast.show{opacity:1}
-  #fade{position:absolute;inset:0;background:#000;opacity:0;transition:opacity 1.1s ease;pointer-events:none}
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>Flycam Đêm Trăng</title>
+  <style>
+    html,
+    body {
+      margin: 0;
+      height: 100%;
+      background: #000;
+      overflow: hidden;
+      font-family: system-ui, sans-serif;
+      touch-action: none
+    }
+
+    /* Trang live: chỉ khung dọc 9:16 (mobile). Trên máy tính vẫn hiện đúng khung 9:16 ở giữa để capture. */
+    #stage {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      background: #000;
+      overflow: hidden;
+      container-type: inline-size
+    }
+
+    canvas {
+      display: block
+    }
+
+    #hud {
+      position: absolute;
+      inset: calc(6px + env(safe-area-inset-top)) 6px auto;
+      display: grid;
+      gap: 3px;
+      padding: 4px;
+      color: #dff;
+      text-shadow: 0 1px 3px #000;
+      font-size: clamp(8px, 3.2cqi, 14px);
+      line-height: 1;
+      pointer-events: none
+    }
+
+    #hud .gift-caption {
+      text-align: center;
+      font-size: clamp(9px, 2.8cqi, 12px);
+      line-height: 1.2;
+      font-weight: 600
+    }
+
+    #giftLegend {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 4px
+    }
+
+    #hud .gift-group {
+      display: flex;
+      align-items: center;
+      gap: clamp(2px, 1.3cqi, 8px)
+    }
+
+    #hud .gift-item {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      white-space: nowrap
+    }
+
+    #hud img {
+      width: clamp(9px, 4.5cqi, 20px);
+      height: clamp(9px, 4.5cqi, 20px);
+      object-fit: contain
+    }
+
+    #hud .large-gift {
+      color: #ffe9a8
+    }
+
+    #hud .gift-with-note {
+      display: grid;
+      justify-items: center;
+      gap: 3px;
+      text-align: center
+    }
+
+    #hud .gift-note {
+      color: #d5e4ee;
+      font-size: clamp(8px, 2.5cqi, 11px);
+      line-height: 1.15
+    }
+
+    #st {
+      position: absolute;
+      left: 8px;
+      bottom: 8px;
+      color: #dff;
+      font-size: 11px;
+      pointer-events: none
+    }
+
+    #toast {
+      position: absolute;
+      left: 50%;
+      top: max(9%, calc(70px + env(safe-area-inset-top)));
+      transform: translateX(-50%);
+      color: #fff;
+      font-size: 14px;
+      white-space: nowrap;
+      background: rgba(0, 20, 40, .55);
+      padding: 7px 16px;
+      border-radius: 20px;
+      opacity: 0;
+      transition: opacity .4s;
+      pointer-events: none
+    }
+
+    #toast.show {
+      opacity: 1
+    }
+
+    #fade {
+      position: absolute;
+      inset: 0;
+      background: #000;
+      opacity: 0;
+      transition: opacity 1.1s ease;
+      pointer-events: none
+    }
+  </style>
 </head>
+
 <body>
-<div id="stage"><div id="hud"></div><div id="toast"></div><div id="fade"></div></div>
-<script type="module" src="/src/main.ts"></script>
+  <div id="stage">
+    <div id="hud">
+      <div class="gift-caption">Chỉnh hướng quay</div>
+      <div id="giftLegend"></div>
+    </div>
+    <div id="st"></div>
+    <div id="toast"></div>
+    <div id="fade"></div>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
 </body>
+
 </html>

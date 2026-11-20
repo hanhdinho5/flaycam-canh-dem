@@ -2,6 +2,9 @@
 //   pnpm server            (rồi mở /control.html để nối live / bấm thử quà)
 import { WebSocketServer, WebSocket } from 'ws';
 import fs from 'node:fs';
+import { createServer } from 'node:http';
+import { musicFiles, serveMusic } from './music';
+import { SCENES } from '../src/scenes';
 import { TikTokLiveConnection, WebcastEvent, ControlEvent } from 'tiktok-live-connector';
 import {
   CMDS, DEFAULT_MAP, SCENE_MIN_DIAMONDS, WS_PORT, findGiftByIdOrName, GIFTS_1,
@@ -13,15 +16,21 @@ const log = (...a: unknown[]) => console.log(new Date().toLocaleTimeString(), ..
 
 let map: GiftMap = { ...DEFAULT_MAP };
 try { map = { ...map, ...JSON.parse(fs.readFileSync(FILE, 'utf8')) }; } catch { /* lần đầu */ }
-const state: ServerState = { type: 'state', map, mode: 'idle', username: '', connected: false, scene: 0 };
+const tracks = musicFiles();
+const state: ServerState = {
+  type: 'state', map, mode: 'idle', username: '', connected: false, scene: 0,
+  tracks, track: tracks[0] ?? null,
+};
 
 const PORT = Number(process.env.WS_PORT) || WS_PORT;   // đổi cổng: WS_PORT=8800 pnpm server (và thêm ?ws=8800 vào link trang)
-const wss = new WebSocketServer({ port: PORT });
+const http = createServer(serveMusic);
+const wss = new WebSocketServer({ server: http });
 wss.on('error', (e: any) => {
   if (e.code === 'EADDRINUSE') console.error(`\n⚠ Cổng ${PORT} đang bị chiếm (có thể server cũ vẫn chạy). Tắt bằng: kill $(lsof -ti :${PORT})\n`);
   else console.error(e);
   process.exit(1);
 });
+http.listen(PORT);
 log(`WebSocket ws://localhost:${PORT}`);
 
 const broadcast = (o: unknown) => {
@@ -86,11 +95,51 @@ function startDemo() {
 }
 
 // ───────── WebSocket ─────────
+const previews = new Set<WebSocket>();
+let live: WebSocket | undefined;
 wss.on('connection', ws => {
+  let role: string | undefined;
+  ws.on('close', () => {
+    previews.delete(ws);
+    if (live === ws) live = undefined;
+  });
+  state.tracks = musicFiles();
+  if (state.track && !state.tracks.includes(state.track)) {
+    state.track = null;
+    pushState();
+  }
   ws.send(JSON.stringify(state));
   ws.on('message', raw => {
     let m: any; try { m = JSON.parse(String(raw)); } catch { return; }
     switch (m.type) {
+      case 'hello':
+        if (role) break;
+        role = m.role;
+        if (role === 'preview') previews.add(ws);
+        if (role === 'game' && !live) live = ws;
+        break;
+      case 'camera': {
+        if (role !== 'game') break;
+        live ??= ws;
+        if (live !== ws || !Number.isInteger(m.scene) || !SCENES[m.scene]
+          || !Array.isArray(m.position) || m.position.length !== 3
+          || !Array.isArray(m.rotation) || m.rotation.length !== 4
+          || ![...m.position, ...m.rotation, m.fov, m.ground, m.time].every(Number.isFinite)) break;
+        if (state.scene !== m.scene) { state.scene = m.scene; pushState(); }
+        const frame = JSON.stringify(m);
+        for (const preview of previews) {
+          if (preview.readyState === WebSocket.OPEN && preview.bufferedAmount === 0) preview.send(frame);
+        }
+        break;
+      }
+      case 'refreshMusic':
+      case 'setMusic': {
+        state.tracks = musicFiles();
+        if (state.track && !state.tracks.includes(state.track)) state.track = null;
+        if (m.type === 'setMusic' && (m.track === null || state.tracks.includes(m.track))) state.track = m.track;
+        pushState();
+        break;
+      }
       case 'fire': { // bấm quà thử từ trang điều khiển
         const g = GIFTS_1.find(x => x.name === m.gift);
         const cmd: Cmd | undefined = CMDS.includes(m.cmd) ? m.cmd : g ? map[g.name] : undefined;
@@ -102,7 +151,7 @@ wss.on('connection', ws => {
         for (const [k, v] of Object.entries(m.map)) if (CMDS.includes(v as Cmd)) next[k] = v as Cmd;
         map = next; saveMap(); pushState();
       } break;
-      case 'sceneChanged': if (typeof m.index === 'number') { state.scene = m.index; pushState(); } break;
+      case 'sceneChanged': if (ws === live && typeof m.index === 'number') { state.scene = m.index; pushState(); } break;
       case 'connect': if (typeof m.username === 'string' && m.username.trim()) startTikTok(m.username.trim().replace(/^@/, '')); break;
       case 'demo': startDemo(); break;
       case 'disconnect': stopAll().then(pushState); break;

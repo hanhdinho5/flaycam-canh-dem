@@ -21,14 +21,16 @@ const wrap = (a: number) => { while (a > Math.PI) a -= 2 * Math.PI; while (a < -
 
 export type Kind = 'village' | 'forest' | 'lake' | 'ridge' | 'meadow';
 interface Way { x: number; z: number; kind: Kind; agl: number; village?: Village; t0: number }
-const SHOT: Record<Kind, { agl: number; speed: number; fov: number; msg: string }> = {
-  village: { agl: 15, speed: 3.0, fov: 62, msg: '🏡 Ghé thăm một ngôi làng' },
-  forest:  { agl: 22, speed: 3.4, fov: 66, msg: '🌲 Bay qua rừng thông' },
-  lake:    { agl: 6,  speed: 3.0, fov: 68, msg: '🌊 Lướt trên mặt hồ' },
-  ridge:   { agl: 38, speed: 3.8, fov: 72, msg: '⛰️ Vượt qua dãy núi' },
-  meadow:  { agl: 9,  speed: 3.0, fov: 66, msg: '🌾 Bay qua đồng cỏ' },
+const SHOT: Record<Kind, { agl: number; speed: number; fov: number }> = {
+  village: { agl: 15, speed: 3.0, fov: 62 },
+  forest:  { agl: 22, speed: 3.4, fov: 66 },
+  lake:    { agl: 6,  speed: 3.0, fov: 68 },
+  ridge:   { agl: 38, speed: 3.8, fov: 72 },
+  meadow:  { agl: 9,  speed: 3.0, fov: 66 },
 };
 const ORBIT_R = 72, ORBIT_S = 30, MANUAL_S = 25;
+const LOW_FLIGHT_HEIGHT = 0.8, LOW_FLIGHT_HOLD = 6, LOW_FLIGHT_RECOVERY = 4;
+const NORMAL_FLIGHT_HEIGHT = 14, LOW_FLIGHT_GIFTS = 3;
 
 export class FlyCam {
   readonly camera: THREE.PerspectiveCamera;
@@ -47,6 +49,7 @@ export class FlyCam {
   private vRoll = { v: 0 }; private vLook = { v: 0 }; private vFov = { v: 0 };
   private time = 0;
   private lastCmd = -999;
+  private lowFlight: { previousAltitude: number; returnAt: number; gifts: number } | null = null;
   autopilot = true;
   onEvent: (msg: string) => void = () => {};
   readonly baseSpeed = 3;
@@ -60,6 +63,7 @@ export class FlyCam {
     this.x = x; this.z = z;
     this.yaw = Math.atan2(-(lx - x), -(lz - z)) - 0.05; this.yawT = this.yaw; this.lookOff = 0;
     this.ground = Math.max(heightAt(x, z), WATER_Y); this.agl = this.altT = agl;
+    this.lowFlight = null;
     this.speed = this.dirSpeed = this.baseSpeed; this.boostT = 0; this.warpT = 0;
     this.way = null; this.orbit = null; this.recent = [];
     for (const v of [this.vYaw, this.vAlt, this.vSpd, this.vG, this.vRoll, this.vLook, this.vFov]) v.v = 0;
@@ -76,11 +80,21 @@ export class FlyCam {
     switch (cmd) {
       case 'left': this.yawT += 0.55 * Math.min(n, 3); break;
       case 'right': this.yawT -= 0.55 * Math.min(n, 3); break;
-      case 'up': this.altT = clamp(this.altT + 14 * n, 4, 120); break;
-      case 'down': this.altT = clamp(this.altT - 10 * n, 4, 120); break;
+      case 'up':
+        this.lowFlight = null;
+        this.altT = clamp(this.altT + 14 * n, 4, 120);
+        break;
+      case 'down':
+        this.lowFlight = {
+          previousAltitude: this.lowFlight?.previousAltitude ?? this.altT,
+          returnAt: this.time + LOW_FLIGHT_HOLD,
+          gifts: (this.lowFlight && this.time < this.lowFlight.returnAt ? this.lowFlight.gifts : 0) + n,
+        };
+        this.altT = clamp(this.altT - 10 * n, this.lowFlight.gifts >= LOW_FLIGHT_GIFTS ? LOW_FLIGHT_HEIGHT : 4, 120);
+        break;
       case 'forward': this.boostT = Math.min(this.boostT + 6 * n, 40); this.boostSpeed = 12; break;
       case 'turn180': this.yawT += Math.PI; break;
-      case 'warp': this.warpT = 11; this.boostT = 11; this.boostSpeed = 60; this.altT = 55; break;
+      case 'warp': this.lowFlight = null; this.warpT = 11; this.boostT = 11; this.boostSpeed = 60; this.altT = 55; break;
     }
     this.yawT = clamp(this.yawT, this.yaw - 3.3, this.yaw + 3.3);
   }
@@ -123,7 +137,6 @@ export class FlyCam {
       best = { x, z, kind: 'meadow', agl: SHOT.meadow.agl, t0: this.time };
     }
     this.recent.push({ x: best.x, z: best.z, kind: best.kind }); if (this.recent.length > 6) this.recent.shift();
-    this.onEvent(SHOT[best.kind].msg);
     return best;
   }
 
@@ -167,7 +180,7 @@ export class FlyCam {
 
     if (this.warpT > 0) {
       this.warpT -= dt;
-      if (this.warpT <= 0) { this.altT = 9; this.lastCmd = t - MANUAL_S + 5; this.onEvent('🌄 Đã đến vùng đất mới'); }
+      if (this.warpT <= 0) { this.lowFlight = null; this.altT = 9; this.lastCmd = t - MANUAL_S + 5; this.onEvent('🌄 Đã đến vùng đất mới'); }
     }
     if (this.boostT > 0) this.boostT -= dt;
 
@@ -183,7 +196,17 @@ export class FlyCam {
     // trên rừng thì bay cao hơn tán cây
     let forest = 0;
     for (const d of [0, 30, 70]) { const [px, pz] = this.fwd(this.yaw, d); forest = Math.max(forest, forestDensity(px, pz)); }
-    this.agl = damp(this.agl, Math.max(this.altT, 11 + 12 * smooth(0.25, 0.6, forest)), this.vAlt, 2.4, dt, 8);
+    let normalClearance = 1;
+    if (this.lowFlight) {
+      const { previousAltitude, returnAt, gifts } = this.lowFlight;
+      const recovery = smooth(returnAt, returnAt + LOW_FLIGHT_RECOVERY, t);
+      if (gifts >= LOW_FLIGHT_GIFTS) normalClearance = recovery;
+      if (t >= returnAt) this.altT = previousAltitude;
+      if (recovery >= 1) this.lowFlight = null;
+    }
+    const forestClearance = 12 * smooth(0.25, 0.6, forest);
+    const minAltitude = THREE.MathUtils.lerp(LOW_FLIGHT_HEIGHT, NORMAL_FLIGHT_HEIGHT, normalClearance) + forestClearance;
+    this.agl = damp(this.agl, Math.max(this.altT, minAltitude), this.vAlt, 2.4, dt, 8);
 
     this.x -= Math.sin(this.yaw) * this.speed * dt;
     this.z -= Math.cos(this.yaw) * this.speed * dt;
@@ -195,7 +218,8 @@ export class FlyCam {
       g = Math.max(g, this.gAt(px, pz) - d * 0.12);
     }
     this.ground = damp(this.ground, g, this.vG, g > this.ground ? 0.9 : 2.8, dt);
-    const y = Math.max(this.ground + this.agl + Math.sin(t * 0.45) * 0.18, this.gAt(this.x, this.z) + 3.2);
+    const clearance = THREE.MathUtils.lerp(LOW_FLIGHT_HEIGHT, 3.2, normalClearance);
+    const y = Math.max(this.ground + this.agl + Math.sin(t * 0.45) * 0.18, this.gAt(this.x, this.z) + clearance);
 
     this.roll = damp(this.roll, clamp(yawRate * 0.55, -0.16, 0.16), this.vRoll, 0.7, dt);
     const pitchT = -(0.13 + 0.30 * smooth(10, 90, this.agl)) + Math.sin(t * 0.31) * 0.006

@@ -6,13 +6,33 @@ const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as 
 let map: GiftMap = { ...DEFAULT_MAP };
 let online = false;
 let curScene = 0;
+const musicTrack = $<HTMLSelectElement>('musicTrack');
+const refreshMusic = $<HTMLButtonElement>('refreshMusic');
+const musicStatus = $('musicStatus');
+let listedTracks: string[] = [];
 
 const conn = connectServer('control', m => {
   if (m.type === 'state') {
+    const supportsMusic = Array.isArray(m.tracks);
+    const tracks: string[] = supportsMusic ? m.tracks : [];
+    if (tracks.length !== listedTracks.length || tracks.some((track, i) => track !== listedTracks[i])) {
+      listedTracks = tracks;
+      musicTrack.replaceChildren(new Option('Tắt nhạc', ''), ...tracks.map(track =>
+        new Option(track.replace(/\.[^.]+$/, ''), track)));
+    }
+    musicTrack.value = m.track ?? '';
+    musicTrack.disabled = tracks.length === 0;
+    refreshMusic.disabled = !supportsMusic;
+    musicStatus.textContent = supportsMusic
+      ? (tracks.length ? '' : 'Thêm tệp âm thanh vào thư mục music/.')
+      : 'Server đang chạy bản cũ. Khởi động lại server để dùng nhạc nền.';
     map = m.map; curScene = m.scene ?? 0; render(); renderSim();
     $('modeTxt').textContent = m.mode === 'tiktok' ? `TikTok @${m.username} — ${m.connected ? 'đã nối' : 'đang nối...'}` : m.mode === 'demo' ? 'Chế độ demo' : 'Chưa nối live';
   } else if (m.type === 'command') flash(`${m.user ?? ''} ${ACTIONS[m.cmd as Cmd].emoji} ${ACTIONS[m.cmd as Cmd].label}`);
 }, ok => { online = ok; $('wsDot').className = 'dot' + (ok ? ' on' : ''); $('wsTxt').textContent = ok ? 'Đã nối server' : 'Chưa nối server (chạy: pnpm server)'; });
+
+musicTrack.onchange = () => conn.send({ type: 'setMusic', track: musicTrack.value || null });
+refreshMusic.onclick = () => conn.send({ type: 'refreshMusic' });
 
 function flash(t: string) {
   const f = $('flash'); f.textContent = t; f.classList.add('show');
@@ -26,7 +46,10 @@ $<HTMLButtonElement>('btnConnect').onclick = () => { const u = $<HTMLInputElemen
 $('btnDemo').onclick = () => conn.send({ type: 'demo' });
 $('btnStop').onclick = () => conn.send({ type: 'disconnect' });
 $<HTMLInputElement>('user').value = localStorage.getItem('tt_user') ?? '';
-($('liveLink') as HTMLAnchorElement).href = location.origin + '/';
+const liveUrl = new URL('/', location.origin);
+const wsPort = new URLSearchParams(location.search).get('ws');
+if (wsPort) liveUrl.searchParams.set('ws', wsPort);
+($('liveLink') as HTMLAnchorElement).href = liveUrl.href;
 
 const opts = (cur?: Cmd) => `<option value="">— không gán —</option>` + CMDS.map(c => `<option value="${c}"${c === cur ? ' selected' : ''}>${ACTIONS[c].emoji} ${ACTIONS[c].label}</option>`).join('');
 
@@ -73,8 +96,9 @@ const liveFrame = $<HTMLIFrameElement>('liveFrame'), prev = $<HTMLInputElement>(
 function setPreview() {
   const on = prev.checked;
   $('off').style.display = on ? 'none' : 'flex';
-  const ws = new URLSearchParams(location.search).get('ws');
-  liveFrame.src = on ? `${location.origin}/${ws ? `?ws=${ws}` : ''}` : 'about:blank';
+  const previewUrl = new URL(liveUrl);
+  previewUrl.searchParams.set('preview', '1');
+  liveFrame.src = on ? previewUrl.href : 'about:blank';
 }
 prev.onchange = setPreview; setPreview();
 

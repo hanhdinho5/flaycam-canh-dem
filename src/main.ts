@@ -13,10 +13,13 @@ import { heightAt, setWorld } from './world/world';
 import { SCENES, type SceneDef } from './scenes';
 import { FlyCam } from './core/flycam';
 import { Post } from './core/post';
-import { connectServer } from './core/net';
-import { ACTIONS, GIFTS_1, DEFAULT_MAP, type Cmd, type GiftMap } from '../shared/giftmap';
+import { connectServer, serverPort } from './core/net';
+import { createBackgroundMusic } from './core/music';
+import { ACTIONS, GIFTS_1, GIFTS_30, DEFAULT_MAP, SCENE_MIN_DIAMONDS, type CameraFrame, type Cmd, type GiftMap } from '../shared/giftmap';
 
 const params = new URLSearchParams(location.search);
+const isPreview = params.has('preview');
+const AUTO_SCENE_INTERVAL = 5 * 60 * 1000;
 const Q = ({ low: 0, med: 1, high: 2 } as Record<string, number>)[params.get('q') ?? 'med'] ?? 1;
 const PR_CAP = [1, 1.5, 2][Q];
 
@@ -90,20 +93,68 @@ window.addEventListener('resize', resize); resize();
 
 // ───────── HUD ─────────
 const hud = document.getElementById('hud')!, toast = document.getElementById('toast')!;
+const giftLegend = document.getElementById('giftLegend')!;
+const stEl = document.getElementById('st')!;
 let giftMap: GiftMap = { ...DEFAULT_MAP };
 let sceneIdx = Math.max(0, Math.min(SCENES.length - 1, Number(params.get('scene') ?? 0) || 0));
+const directionIcons: Partial<Record<Cmd, string>> = { left: '←', right: '→', up: '↑', down: '↓' };
+const giftNotes: Partial<Record<Cmd, string>> = {
+  turn180: 'Quay đầu', warp: 'Sang vùng mới', scene: 'Đổi cảnh',
+};
+
+function giftWithNote(item: HTMLElement, text: string) {
+  const group = document.createElement('span');
+  group.className = 'gift-with-note';
+  const note = document.createElement('span');
+  note.className = 'gift-note';
+  note.setAttribute('aria-hidden', 'true');
+  note.textContent = text;
+  group.append(item, note);
+  return group;
+}
+
 function renderHud() {
-  const rows = Object.entries(giftMap).map(([name, cmd]) => {
-    const g = GIFTS_1.find(x => x.name === name);
-    return `<div class="row">${g ? `<img src="${g.imageUrl}">` : ''}<span>${name}</span> → ${ACTIONS[cmd].emoji} ${ACTIONS[cmd].label}</div>`;
-  }).join('');
-  hud.innerHTML = '<b>🛸 Tặng quà để lái flycam</b>' + rows +
-    `<div class="row" style="margin-top:5px;color:#ffe9a8">🎁 Quà từ 30 xu → ${ACTIONS.scene.emoji} ${ACTIONS.scene.label}</div>` +
-    `<div style="opacity:.75;margin-top:3px">${SCENES[sceneIdx].emoji} ${SCENES[sceneIdx].name}</div><div id="st" style="opacity:.6;margin-top:2px"></div>`;
+  const directions = document.createElement('div');
+  const otherGifts = document.createElement('div');
+  directions.className = otherGifts.className = 'gift-group';
+  for (const [name, cmd] of Object.entries(giftMap)) {
+    const gift = GIFTS_1.find(g => g.name === name);
+    const direction = directionIcons[cmd];
+    const item = document.createElement('span');
+    item.className = 'gift-item';
+    item.setAttribute('aria-label', `${name}: ${ACTIONS[cmd].label}`);
+    item.setAttribute('role', 'img');
+    if (gift) {
+      const image = document.createElement('img');
+      image.src = gift.imageUrl;
+      image.alt = '';
+      item.append(image);
+    } else {
+      item.append('🎁');
+    }
+    item.append(direction ?? ACTIONS[cmd].emoji);
+    if (direction) directions.append(item);
+    else otherGifts.append(giftWithNote(item, giftNotes[cmd] ?? ACTIONS[cmd].label));
+  }
+  const largeGift = document.createElement('span');
+  largeGift.className = 'gift-item large-gift';
+  largeGift.setAttribute('role', 'img');
+  largeGift.setAttribute('aria-label', `Quà từ ${SCENE_MIN_DIAMONDS} xu: ${ACTIONS.scene.label}`);
+  const doughnut = GIFTS_30.find(gift => gift.name === 'Doughnut');
+  if (doughnut) {
+    const image = document.createElement('img');
+    image.src = doughnut.imageUrl;
+    image.alt = '';
+    largeGift.append(image);
+  } else {
+    largeGift.append('🎁');
+  }
+  largeGift.append(ACTIONS.scene.emoji);
+  otherGifts.append(giftWithNote(largeGift, 'Đổi cảnh'));
+  giftLegend.replaceChildren(directions, otherGifts);
 }
 renderHud();
 let net: ReturnType<typeof connectServer>;
-const stEl = { get textContent() { return ''; }, set textContent(v: string) { const e = document.getElementById('st'); if (e) e.textContent = v; } };
 let toastTimer = 0;
 function showToast(msg: string) {
   toast.textContent = msg; toast.classList.add('show');
@@ -117,10 +168,41 @@ function runCmd(cmd: Cmd, user?: string, count = 1, gift?: string, index?: numbe
   else fly.command(cmd, count);
   showToast(`${user ? '@' + user + ' ' : ''}${gift ? '🎁 ' + gift + ' → ' : ''}${ACTIONS[cmd].emoji} ${ACTIONS[cmd].label}${count > 1 ? ' ×' + count : ''}`);
 }
-net = connectServer('game', m => {
-  if (m.type === 'command') runCmd(m.cmd, m.user, m.count ?? 1, m.gift, m.index);
-  else if (m.type === 'state') { giftMap = m.map; renderHud(); }
-}, ok => { stEl.textContent = ok ? '' : '○ Chưa nối server'; if (ok) net?.send({ type: 'sceneChanged', index: sceneIdx }); });
+const setMusic = isPreview ? undefined : createBackgroundMusic(stage);
+let previewFrame: CameraFrame | undefined;
+let lastLiveFrame = -Infinity;
+let lastServerFrame = -Infinity;
+const cameraChannel = typeof BroadcastChannel === 'function'
+  ? new BroadcastChannel(`flycam-camera-${serverPort}`) : undefined;
+const cameraSource = !isPreview && cameraChannel ? Math.random().toString(36).slice(2) : undefined;
+let localSource: string | undefined;
+
+if (isPreview && cameraChannel) {
+  cameraChannel.onmessage = (event: MessageEvent<{ source: string; frame: CameraFrame }>) => {
+    const now = performance.now();
+    if (now - lastServerFrame <= 500) return;
+    const { source, frame } = event.data;
+    if (localSource && source !== localSource && now - lastLiveFrame <= 1000) return;
+    localSource = source;
+    previewFrame = frame;
+    lastLiveFrame = now;
+  };
+}
+
+net = connectServer(isPreview ? 'preview' : 'game', m => {
+  if (m.type === 'camera' && isPreview) {
+    previewFrame = m;
+    lastLiveFrame = lastServerFrame = performance.now();
+  }
+  else if (m.type === 'command' && !isPreview) runCmd(m.cmd, m.user, m.count ?? 1, m.gift, m.index);
+  else if (m.type === 'state') {
+    giftMap = m.map; renderHud();
+    setMusic?.(m.track ?? null);
+  }
+}, ok => {
+  stEl.textContent = ok ? '' : '○ Chưa nối server';
+  if (!isPreview && ok) net?.send({ type: 'sceneChanged', index: sceneIdx });
+});
 
 // bàn phím để test: A/D rẽ, W tăng tốc, Q/E lên/xuống, R quay đầu, T warp, H ẩn HUD
 const KEYS: Record<string, Cmd> = {
@@ -128,6 +210,7 @@ const KEYS: Record<string, Cmd> = {
   q: 'up', ' ': 'up', e: 'down', arrowdown: 'down', r: 'turn180', t: 'warp', n: 'scene',
 };
 window.addEventListener('keydown', e => {
+  if (isPreview) return;
   const k = e.key.toLowerCase();
   if (k === 'h') { hud.style.display = hud.style.display === 'none' ? '' : 'none'; return; }
   if (k >= '1' && k <= '9' && Number(k) <= SCENES.length) { changeScene(Number(k) - 1); return; }
@@ -142,6 +225,7 @@ function applyLook(def: SceneDef) {
   U.uSkyTop.value.set(...L.skyTop); U.uSkyMid.value.set(...L.skyMid);
   U.uMoonDir.value.set(...L.moonDir).normalize(); U.uMoonCol.value.set(L.moonColor);
   U.uMoonOn.value = L.moonOn; U.uMoonSize.value = L.moonSize;
+  U.uMoonBrightness.value = L.moonBrightness ?? 1;
   U.uStars.value.set(...L.stars); U.uMW.value = L.milkyWay; U.uCloud.value.set(...L.cloud);
   U.uCloudLit.value.set(...L.cloudLit); U.uCloudDark.value.set(...L.cloudDark);
   moon.color.set(L.moonLight.color); moon.intensity = L.moonLight.intensity;
@@ -179,6 +263,7 @@ function preload() {
   }
 }
 
+let nextAutoScene = Infinity;
 function loadScene(i: number) {
   const def = SCENES[i];
   sceneIdx = i;
@@ -188,13 +273,15 @@ function loadScene(i: number) {
   fly.teleport(def.start.x, def.start.z, def.start.lookAt.x, def.start.lookAt.z, def.start.agl);
   preload();
   fireflies.seedAround(camera.position);
-  renderHud();
-  net?.send({ type: 'sceneChanged', index: i });
+  if (!isPreview) {
+    nextAutoScene = performance.now() + AUTO_SCENE_INTERVAL;
+    net?.send({ type: 'sceneChanged', index: i });
+  }
 }
 
 const fadeEl = document.getElementById('fade');
 let changing = false;
-function changeScene(i: number) {
+function changeScene(i: number, announce = true) {
   i = ((i % SCENES.length) + SCENES.length) % SCENES.length;
   if (changing) return;
   changing = true;
@@ -203,7 +290,7 @@ function changeScene(i: number) {
     loadScene(i);
     window.setTimeout(() => {
       if (fadeEl) fadeEl.style.opacity = '0';
-      showToast(`${SCENES[i].emoji} ${SCENES[i].name}`);
+      if (announce) showToast(`${SCENES[i].emoji} ${SCENES[i].name}`);
       changing = false;
     }, 250);
   }, 1100);
@@ -221,6 +308,10 @@ if (params.has('debug')) { (window as any).__trees = trees; (window as any).__fl
 // WebGL bị mất (driver/GPU treo): tải lại trang để live không đứng hình
 renderer.domElement.addEventListener('webglcontextlost', e => { e.preventDefault(); setTimeout(() => location.reload(), 1500); });
 let adaptT = 0, lakeT = 0;
+let nextCameraFrame = 0;
+let previewHasCamera = false;
+const previewPosition = new THREE.Vector3();
+const previewRotation = new THREE.Quaternion();
 function lakeNear(x: number, z: number) {
   for (const r of [30, 90, 180, 300]) for (let a = 0; a < 12; a++)
     if (heightAt(x + Math.cos(a * 0.5236) * r, z + Math.sin(a * 0.5236) * r) < 0.2) return true;
@@ -229,11 +320,46 @@ function lakeNear(x: number, z: number) {
 
 function frame() {
   const now = performance.now(); const dt = Math.min((now - last) / 1000, 0.1); last = now;
-  U.uTime.value += dt;
-  fly.update(dt);
+  let fov = fly.fov;
+  let ground = fly.ground;
+  if (isPreview) {
+    const snapshot = now - lastLiveFrame <= 2000 ? previewFrame : undefined;
+    const status = snapshot ? '' : 'Đang chờ trang live…';
+    if (stEl.textContent !== status) stEl.textContent = status;
+    if (snapshot) {
+      const sceneChanged = snapshot.scene !== sceneIdx;
+      if (sceneChanged) loadScene(snapshot.scene);
+      previewPosition.fromArray(snapshot.position);
+      const blend = !previewHasCamera || sceneChanged || camera.position.distanceToSquared(previewPosition) > 10000
+        ? 1 : 1 - Math.exp(-dt * 25);
+      camera.position.lerp(previewPosition, blend);
+      camera.quaternion.slerp(previewRotation.fromArray(snapshot.rotation), blend);
+      U.uTime.value = snapshot.time;
+      fov = snapshot.fov;
+      ground = snapshot.ground;
+    }
+    previewHasCamera = Boolean(snapshot);
+  } else {
+    if (now >= nextAutoScene) changeScene(sceneIdx + 1, false);
+    U.uTime.value += dt;
+    fly.update(dt);
+    fov = fly.fov;
+    ground = fly.ground;
+  }
+  if (Math.abs(camera.fov - fov) > 0.05) { camera.fov = fov; camera.updateProjectionMatrix(); applyUPx(); }
   const cp = camera.position;
   U.uCam.value.copy(cp);
-  const agl = cp.y - fly.ground;
+  const agl = cp.y - ground;
+
+  if (!isPreview && now >= nextCameraFrame) {
+    nextCameraFrame = now + 50;
+    const snapshot: CameraFrame = {
+      type: 'camera', scene: sceneIdx, position: cp.toArray(), rotation: camera.quaternion.toArray(),
+      fov: camera.fov, ground, time: U.uTime.value,
+    };
+    net.send(snapshot, false);
+    cameraChannel?.postMessage({ source: cameraSource, frame: snapshot });
+  }
 
   sky.position.copy(cp);
   water.position.set(Math.round(cp.x / 20) * 20, 0, Math.round(cp.z / 20) * 20);
@@ -252,9 +378,6 @@ function frame() {
   fireflies.update(dt, cp, agl);
 
   post.render(dt, U.uTime.value);
-
-  // góc nhìn (FOV) thay đổi theo từng cảnh quay
-  if (Math.abs(camera.fov - fly.fov) > 0.05) { camera.fov = fly.fov; camera.updateProjectionMatrix(); applyUPx(); }
 
   frames++; acc += dt;
   if (acc >= 2) {

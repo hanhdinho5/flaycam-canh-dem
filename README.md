@@ -34,4 +34,11 @@ Tên cảnh hiện ở giữa trên màn hình khi chuyển điểm.
 Trang điều khiển có mục **Giả lập quà trên màn live**: bấm quà 1 xu đã gán, quà 30 xu (đổi không gian), hoặc chọn thẳng không gian.
 Đổi cổng WebSocket nếu 8787 bận: `WS_PORT=8800 pnpm server` và mở trang với `?ws=8800`.
 
+## Nhạc nền
+
+Đặt tệp `.mp3`, `.m4a`, `.ogg`, `.wav` hoặc `.webm` vào thư mục `music/` ở gốc dự án.
+Trong `/control.html`, bấm **Cập nhật danh sách** rồi chọn bài ở mục **Nhạc nền**.
+Nhạc phát lặp tại trang live. Nếu trình duyệt chặn tự phát, bấm **Bật nhạc** ngay trên trang live.
+`music/` được Git bỏ qua.
+
 Phím test trên trang live: A/D rẽ · W nhanh · Q lên · E xuống · R quay đầu · T warp · H ẩn bảng quà.

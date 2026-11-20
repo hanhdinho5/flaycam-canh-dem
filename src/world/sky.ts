@@ -15,6 +15,7 @@ precision highp float;
 varying vec3 vDir;
 uniform float uTime; uniform vec3 uMoonDir; uniform vec3 uMoonCol; uniform vec3 uFogColor; uniform vec2 uWind;
 uniform vec3 uSkyTop; uniform vec3 uSkyMid; uniform float uMoonOn; uniform float uMoonSize; uniform vec2 uStars; uniform float uMW;
+uniform float uMoonBrightness;
 uniform vec2 uCloud; uniform vec3 uCloudLit; uniform vec3 uCloudDark;
 
 float hash(vec2 p){ p = fract(p*vec2(123.34,456.21)); p += dot(p,p+45.32); return fract(p.x*p.y); }
@@ -79,17 +80,17 @@ void main(){
     dens *= mix(0.12, 1.0, clear);
     dens *= smoothstep(0.0, 0.14, d.y);
     float lit = clamp((c0 - c1) * 7.0 + 0.45, 0.0, 1.0);
-    float near = 0.25 + 0.75 * exp(-ang * 2.2);
+    float near = 0.25 + 0.75 * exp(-ang * 2.2) * uMoonBrightness;
     vec3 dark = uCloudDark;
     vec3 bright = uCloudLit;
     cloudCol = mix(dark, bright, lit * near);
-    cloudCol += uMoonCol * 0.35 * smoothstep(0.55,0.8,c0) * exp(-ang*3.0);
+    cloudCol += uMoonCol * 0.35 * smoothstep(0.55,0.8,c0) * exp(-ang*3.0) * uMoonBrightness;
     cover = dens;
   }
 
   // vầng trăng
   float halo = 0.10 / (1.0 + pow(ang * 14.0, 2.0)) + 0.35 * exp(-ang * 28.0) + 0.9 * exp(-ang*90.0);
-  vec3 moonGlow = uMoonCol * halo * uMoonOn;
+  vec3 moonGlow = uMoonCol * halo * uMoonOn * uMoonBrightness;
 
   vec3 b1 = normalize(cross(uMoonDir, vec3(0,1,0))); vec3 b2 = cross(b1, uMoonDir);
   vec2 muv = vec2(dot(d,b1), dot(d,b2)) / uMoonSize;
@@ -104,7 +105,7 @@ void main(){
   col += moonGlow * (1.0 - cover*0.7);
   col = mix(col, cloudCol, cover);
   col += moonGlow * cover * 0.25;
-  col = mix(col, moonSurf, disc * (1.0 - cover*0.85));
+  col = mix(col, moonSurf * uMoonBrightness, disc * (1.0 - cover*0.85));
 
   // hạ chân trời hoà vào sương mù
   float hz = smoothstep(0.0, 0.10, d.y);
@@ -118,6 +119,7 @@ export function createSky(): THREE.Mesh {
     vertexShader: vert, fragmentShader: frag, side: THREE.BackSide, depthWrite: false, depthTest: false,
     uniforms: { uTime: U.uTime, uMoonDir: U.uMoonDir, uMoonCol: U.uMoonCol, uFogColor: U.uFogColor, uWind: U.uWind,
       uSkyTop: U.uSkyTop, uSkyMid: U.uSkyMid, uMoonOn: U.uMoonOn, uMoonSize: U.uMoonSize, uStars: U.uStars, uMW: U.uMW,
+      uMoonBrightness: U.uMoonBrightness,
       uCloud: U.uCloud, uCloudLit: U.uCloudLit, uCloudDark: U.uCloudDark },
   });
   const m = new THREE.Mesh(new THREE.SphereGeometry(1000, 48, 24), mat);

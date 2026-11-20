@@ -8,7 +8,7 @@ export const CMDS: Cmd[] = ['left', 'right', 'forward', 'up', 'down', 'turn180',
 export const ACTIONS: Record<Cmd, { label: string; emoji: string }> = {
   left:    { label: 'Rẽ trái',          emoji: '⬅️' },
   right:   { label: 'Rẽ phải',          emoji: '➡️' },
-  forward: { label: 'Bay nhanh tới',    emoji: '⏩' },
+  forward: { label: 'Tăng tốc',         emoji: '⏩' },
   up:      { label: 'Bay lên cao',      emoji: '⬆️' },
   down:    { label: 'Hạ thấp',          emoji: '⬇️' },
   turn180: { label: 'Quay đầu 180°',    emoji: '🔄' },
@@ -48,5 +48,16 @@ export interface ServerState {
   username: string;
   connected: boolean;
   scene: number;
+  tracks: string[];
+  track: string | null;
 }
 export interface CommandMsg { type: 'command'; cmd: Cmd; user?: string; gift?: string; count?: number }
+export interface CameraFrame {
+  type: 'camera';
+  scene: number;
+  position: [number, number, number];
+  rotation: [number, number, number, number];
+  fov: number;
+  ground: number;
+  time: number;
+}
