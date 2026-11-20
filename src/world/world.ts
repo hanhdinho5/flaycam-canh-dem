@@ -14,7 +14,7 @@ export interface WorldParams {
     chance: number; yMin: number; yMax: number; flat: boolean; plateau: [number, number];
     fence: boolean; animals: boolean; types: number[]; n: [number, number]; houseR: [number, number];
     forced: { x: number; z: number; y?: number; kind?: 'lakecabin'; facing?: { x: number; z: number } };
-  };
+  } | null;
   snowLine: number; rockLine: number; treeLine: number;
 }
 
@@ -94,8 +94,8 @@ export interface Village {
 }
 const CELL = 420;
 
-function makeVillage(cx: number, cz: number, isForced: boolean): Village | null {
-  const V = P.village, F = V.forced;
+function makeVillage(cx: number, cz: number, V: NonNullable<WorldParams['village']>, isForced: boolean): Village | null {
+  const F = V.forced;
   const r = mulberry32(hashInt(cx, cz, 991 + P.seed));
   if (!isForced && r() > V.chance) return null;
   const x = isForced ? F.x : (cx + 0.27 + 0.46 * r()) * CELL;
@@ -145,11 +145,13 @@ function makeVillage(cx: number, cz: number, isForced: boolean): Village | null 
 }
 
 export function villageInCell(cx: number, cz: number): Village | null {
+  const config = P.village;
+  if (!config) return null;
   const key = (cx + 5000) * 10007 + (cz + 5000);
   let v = vcache.get(key);
   if (v === undefined) {
-    const F = P.village.forced;
-    v = makeVillage(cx, cz, cx === Math.floor(F.x / CELL) && cz === Math.floor(F.z / CELL));
+    const F = config.forced;
+    v = makeVillage(cx, cz, config, cx === Math.floor(F.x / CELL) && cz === Math.floor(F.z / CELL));
     vcache.set(key, v);
   }
   return v;

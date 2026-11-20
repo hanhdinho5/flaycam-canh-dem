@@ -13,12 +13,14 @@ Mặc định: Rose=trái, TikTok=phải, GG=lên, Heart Me=tiến nhanh, Ice Cr
 Quà từ 30 xu trở lên không có trong bảng → đổi không gian. Sửa ngưỡng ở `shared/giftmap.ts`.
 Cần sign key cho TikTok: `EULER_API_KEY=... pnpm server`.
 
-## Ba không gian
+## Năm không gian
 1. 🌿 **Đồng cỏ Thụy Sĩ** — đồi cỏ, làng gỗ, cừu bò, trăng cyan, sương thấp.
 2. ☁️ **Cao nguyên trên mây** (kiểu Dolomites) — cao nguyên chalet nhìn xuống **biển mây**, vách đá nhọn sáng dưới trăng, bầu trời xanh sẫm.
 3. 🌌 **Hồ gương dưới dải ngân hà** — hồ **phản chiếu thật** núi tuyết + trời sao, rừng vân sam đen, cabin gỗ sáng đèn có bến gỗ và khói.
+4. 🏔️ **Dãy núi dưới trăng** — rặng thông, sương lững lờ trong thung lũng và nhiều lớp đỉnh tuyết dưới trời sao.
+5. 🌙 **Vịnh trăng qua rừng thông** — trăng vàng nhạt phản chiếu trên mặt vịnh, rừng thông ven bờ và một lớp sương sát mặt nước.
 
-**Đổi không gian:** tặng quà **từ 30 xu trở lên** (ngưỡng ở `shared/giftmap.ts`, `SCENE_MIN_DIAMONDS`), không gian kế tiếp theo vòng, màn hình tối dần rồi bay tới điểm xuất phát mới. Phím test: `N` (kế tiếp), `1` `2` `3` (chọn), hoặc `?scene=2` trong link. Thêm không gian mới: thêm một mục vào `src/scenes.ts`.
+**Đổi không gian:** tặng quà **từ 30 xu trở lên** (ngưỡng ở `shared/giftmap.ts`, `SCENE_MIN_DIAMONDS`), không gian kế tiếp theo vòng, màn hình tối dần rồi bay tới điểm xuất phát mới. Phím test: `N` (kế tiếp), `1` `2` `3` `4` `5` (chọn), hoặc `?scene=2` trong link. Thêm không gian mới: thêm một mục vào `src/scenes.ts`.
 
 ## Flycam tự lái (đạo diễn)
 Khi không có quà trong 25 giây, flycam tự chọn điểm đến thú vị cách 330–930 m rồi bay tới, đổi góc quay theo từng loại cảnh:
