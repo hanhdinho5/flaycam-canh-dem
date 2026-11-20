@@ -18,6 +18,6 @@ export function connectServer(role: 'game' | 'control' | 'preview', onMsg: (m: a
   open();
   return { send: (o, queueIfOffline = true) => {
     if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(o));
-    else if (queueIfOffline) queue.push(JSON.stringify(o));
+    else if (queueIfOffline && queue.length < 20) queue.push(JSON.stringify(o));   // giới hạn để không bắn dồn hàng loạt lệnh khi nối lại
   } };
 }

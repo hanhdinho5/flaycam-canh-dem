@@ -263,6 +263,27 @@ function preload() {
   }
 }
 
+// hướng nhìn lúc vào cảnh: ngẫu nhiên mỗi lần, bỏ hướng đâm thẳng vào vách núi và hướng gần giống lần trước
+let lastStartAng: number | undefined;
+function pickStartLook(def: SceneDef) {
+  const { x, z, agl } = def.start, y0 = Math.max(heightAt(x, z), 0) + agl;
+  const ok: number[] = [];
+  for (let k = 0; k < 24; k++) {
+    const a = Math.random() * Math.PI * 2;
+    if (lastStartAng !== undefined) {
+      const d = Math.abs(((a - lastStartAng + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+      if (Math.PI - d < 1.0) continue;   // cách hướng lần trước ít nhất ~57°
+    }
+    let wall = -Infinity;
+    for (let d = 40; d <= 260; d += 30) wall = Math.max(wall, heightAt(x + Math.cos(a) * d, z + Math.sin(a) * d) - y0);
+    if (wall < 18) ok.push(a);
+  }
+  const a = ok.length ? ok[Math.floor(Math.random() * ok.length)]
+    : Math.atan2(def.start.lookAt.z - z, def.start.lookAt.x - x);   // không có hướng thoáng -> dùng hướng gốc
+  lastStartAng = a;
+  return { x: x + Math.cos(a) * 200, z: z + Math.sin(a) * 200 };
+}
+
 let nextAutoScene = Infinity;
 function loadScene(i: number) {
   const def = SCENES[i];
@@ -270,7 +291,8 @@ function loadScene(i: number) {
   setWorld(def.world);
   applyLook(def);
   near.clear(); far.clear(); trees.clear(); village.clear(); grass.clear();
-  fly.teleport(def.start.x, def.start.z, def.start.lookAt.x, def.start.lookAt.z, def.start.agl);
+  const look = pickStartLook(def);
+  fly.teleport(def.start.x, def.start.z, look.x, look.z, def.start.agl);
   preload();
   fireflies.seedAround(camera.position);
   if (!isPreview) {
@@ -377,7 +399,7 @@ function frame() {
   grass.update(cp.x, cp.z, agl, 2);
   fireflies.update(dt, cp, agl);
 
-  post.render(dt, U.uTime.value);
+  post.render(dt);
 
   frames++; acc += dt;
   if (acc >= 2) {

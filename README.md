@@ -7,10 +7,10 @@ Hai trang:
 ## Chạy
 ```bash
 pnpm install
-pnpm start      # server (cổng 8787) + web (cổng 5175)
+pnpm start      # server (cổng 8787, chỉ localhost; WS_HOST=0.0.0.0 để mở ra LAN) + web (cổng 5175, báo lỗi nếu bị chiếm)
 ```
 Mặc định: Rose=trái, TikTok=phải, GG=lên, Heart Me=tiến nhanh, Ice Cream Cone=xuống, Thumbs Up=quay đầu.
-Quà lớn (≥ 100 xu) không có trong bảng → bay tới vùng mới. Sửa ngưỡng ở `shared/giftmap.ts`.
+Quà từ 30 xu trở lên không có trong bảng → đổi không gian. Sửa ngưỡng ở `shared/giftmap.ts`.
 Cần sign key cho TikTok: `EULER_API_KEY=... pnpm server`.
 
 ## Ba không gian

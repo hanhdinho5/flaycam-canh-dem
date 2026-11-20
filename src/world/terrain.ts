@@ -60,9 +60,11 @@ export function createTerrainMaterial(): THREE.MeshStandardMaterial {
         vec3 bw = pow(abs(wn0), vec3(4.0)); bw /= (bw.x + bw.y + bw.z);
         vec2 gp = vWP.xz;
         vec3 g1 = texture2D(tGrass, gp / 7.0).rgb;
-        vec3 g2 = texture2D(tGrass, gp / 53.0 + 0.31).rgb;
+        // Xoay lớp texture lớn để hai lớp không lặp cùng hướng.
+        vec2 macroUV = mat2(0.8, 0.6, -0.6, 0.8) * gp / 53.0 + 0.31;
+        vec3 g2 = texture2D(tGrass, macroUV).rgb;
         float lum2 = dot(g2, vec3(0.33));
-        vec3 alb = g1 * (0.55 + 1.1 * lum2) * 1.9;
+        vec3 alb = g1 * mix(0.95, 1.55, smoothstep(0.02, 0.45, lum2));
         vec3 pth = texture2D(tPath, gp / 3.5).rgb * 1.2;
         vec3 mud = texture2D(tMud, gp / 4.0).rgb * 1.1;
         vec3 rk = (tri(tRock, vWP, bw, 0.11) * 0.8 + tri(tRock, vWP, bw, 0.021) * 0.9) * 2.3 * uRockMul;
@@ -82,12 +84,12 @@ export function createTerrainMaterial(): THREE.MeshStandardMaterial {
           vec2 gq = vWP.xz / 7.0;
           vec3 tg = texture2D(tGrassN, gq).xyz * 2.0 - 1.0;
           vec3 tg2 = texture2D(tGrassN, vWP.xz / 1.9 + 0.5).xyz * 2.0 - 1.0;
-          vec3 bump = vec3(tg.x + tg2.x * 0.5, 0.0, tg.y + tg2.y * 0.5) * 0.9;
+          vec3 bump = vec3(tg.x + tg2.x * 0.5, 0.0, tg.y + tg2.y * 0.5) * 0.55;
           vec3 rx = texture2D(tRockN, vWP.zy * 0.11).xyz * 2.0 - 1.0;
           vec3 ry = texture2D(tRockN, vWP.xz * 0.11).xyz * 2.0 - 1.0;
           vec3 rz = texture2D(tRockN, vWP.xy * 0.11).xyz * 2.0 - 1.0;
           vec3 rb = bw.x * vec3(0.0, rx.y, rx.x) + bw.y * vec3(ry.x, 0.0, ry.y) + bw.z * vec3(rz.x, rz.y, 0.0);
-          bump = mix(bump, rb * 1.4, clamp(vMask.x + vMask.y, 0.0, 1.0));
+          bump = mix(bump, rb * 0.85, clamp(vMask.x + vMask.y, 0.0, 1.0));
           vec3 pn = normalize(wn + bump * nf);
           normal = normalize((viewMatrix * vec4(pn, 0.0)).xyz);
         }`);
